@@ -43,31 +43,12 @@ _side_new = (_sideID_new) call CTI_CO_FNC_GetSideFromID;
 if ((CTI_P_SideJoined == resistance)&& _side_new == CTI_P_SideJoined) exitWith {CTI_P_ChatID commandChat format["%1 has been captured!", _town getVariable "cti_town_name"];};
 if (_side_new == CTI_P_SideJoined) then { //--- The player's side has captured it
 	//todo move to displaymessage
-	CTI_P_ChatID commandChat format["%1 has been captured!", _town getVariable "cti_town_name"];
-/*
-	_in_range = false;
-	{if (_x distance _town < CTI_MARKERS_TOWN_AREA_RANGE) exitWith {_in_range = true}} forEach ((units player) call CTI_CO_FNC_GetLiveUnits);
+	HUD_NOTIFICATIONS pushBack [ format["%1 has been captured!", _town getVariable "cti_town_name"],time+180000,"ffffff"];
 
-	if (_in_range) then { //--- The player or one of his unit was in range of the town.
-		_last_capture = _town getVariable "cti_town_lastcap";
-		_value = _town getVariable "cti_town_value";
-		_value = _value *CTI_TOWNS_CAPTURE_RATIO;
-		if !(isNil '_last_capture') then {
-			if (time - _last_capture <= CTI_TOWNS_CAPTURE_BOUNTY_DELAY) then { _value = round(_value / 4) };
-		};
-
-		_score = round(_value / CTI_SCORE_TOWN_VALUE_PERPOINT);
-		if (_score > 0) then {["SERVER", "Request_AddScore", [player, _score]] call CTI_CO_FNC_NetSend}; //--- Award some score
-		(_value) call CTI_CL_FNC_ChangePlayerFunds; //--- Award some money
-		["town-capture", [_town, _value]] call CTI_CL_FNC_DisplayMessage;
-	};
-
-	_town setVariable ["cti_town_lastcap", time];
-	*/
 } else { //--- The player's side has lost it
 	//todo move to displaymessage
 
-	if !(CTI_P_SideJoined == resistance) then{ CTI_P_ChatID commandChat format["%1 has been lost!", _town getVariable "cti_town_name"]};
+	if !(CTI_P_SideJoined == resistance) then{ HUD_NOTIFICATIONS pushBack [ format["%1 has been lost!", _town getVariable "cti_town_name"],time+18000,"ffff00"]};
 };
 
 //--- Paint it

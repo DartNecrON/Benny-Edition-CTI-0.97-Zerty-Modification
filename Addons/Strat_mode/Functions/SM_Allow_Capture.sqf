@@ -31,7 +31,7 @@ while  {!CTI_GameOver} do {
 
 		if !(!_prevent && _neigh && (_forces || _priority && ! _ours)) then {
 			if (_pr_s == _t) then {_pr_s=objNull;_sl setVariable ["CTI_PRIORITY",objNull,true];};
-			[["CLIENT",_side],"SM_message",format ["Town %1 is now Inactive",(_t getVariable "cti_town_name")]] call CTI_CO_FNC_NetSend ;
+			[["CLIENT",_side],"SM_message",format [localize "STR_TownInactive",(_t getVariable "cti_town_name")]] call CTI_CO_FNC_NetSend ;
 			_n_ac_s = _n_ac_s - [_t];
 		};
 			true
@@ -63,9 +63,11 @@ while  {!CTI_GameOver} do {
 		_currently_a=if ({_x == _t} count _n_ac_s >0) then {true} else {false}; // active check
 		_priority=if (_pr_s == _t) then {true} else {false}; //priority check
 		// own many of our side around?
-		_groups=   (_side) call CTI_CO_FNC_GetSideGroups;
-		_a_objects= [];
-		{if (!isNull leader _x ) then {_a_objects set [count _a_objects,leader _x]};true} count _groups;
+		//_groups=   (_side) call CTI_CO_FNC_GetSideGroups;
+		//_a_objects= switchableUnits + playableUnits;
+		_a_objects=[];
+		{_a_objects pushBack (leader _x);true} count (_sl getVariable ["CTI_Teams",[]]);
+		//{if (!isNull leader _x ) then {_a_objects set [count _a_objects,leader _x]};true} count _groups;
 		_objects = [];
 		{if (((side _x) ==_side)  && (_x distance _t)<= CTI_TOWNS_RESISTANCE_DETECTION_RANGE ) then {_objects set [count _objects,_x]};true } count _a_objects;
 		_objects=_objects unitsBelowHeight CTI_TOWNS_RESISTANCE_DETECTION_RANGE_AIR;

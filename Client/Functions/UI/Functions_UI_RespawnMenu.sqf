@@ -5,14 +5,14 @@ CTI_UI_Respawn_GetAvailableLocations = {
 
 	_hq = (CTI_P_SideJoined) call CTI_CO_FNC_GetSideHQ;
 	_structures = (CTI_P_SideJoined) call CTI_CO_FNC_GetSideStructures;
-	if (alive _hq) then { [_list, _hq] call CTI_CO_FNC_ArrayPush };
+	if (alive _hq) then {_list pushBack _hq };
 	_list = _list + _structures;
 	if (count _list < 1) then { _list = [_hq] };
 	_list=_list - [objNull];
 	//--- Add FOBs if available.
 	if (CTI_BASE_FOB_MAX > 0) then {
 		_fobs = CTI_P_SideLogic getVariable ["cti_fobs", []];
-		{if (alive _x && _x distance CTI_DeathPosition <= CTI_RESPAWN_FOB_RANGE) then {[_list, _x] call CTI_CO_FNC_ArrayPush}} forEach _fobs;
+		{if (alive _x && _x distance CTI_DeathPosition <= CTI_RESPAWN_FOB_RANGE) then {_list pushBack _x}} forEach _fobs;
 	};
 	// --- zerty was here for towns
 	_towns = [];
@@ -24,7 +24,7 @@ CTI_UI_Respawn_GetAvailableLocations = {
 			{if ((_x  getVariable "cti_town_capture") == CTI_TOWNS_CAPTURE_VALUE_CEIL) then{ _posible set [count _posible,_x]};} count _c_towns;
 
 			_t = [CTI_DeathPosition, _posible ] call CTI_CO_FNC_GetClosestEntity;
-			if (! (isNull _t) ) then {[_towns, _t] call CTI_CO_FNC_ArrayPush;};
+			if (! (isNull _t) ) then {_towns pushBack _t;};
 		};
 		case 2: {
 			_sid = (CTI_P_SideJoined)  call CTI_CO_FNC_GetSideID;
@@ -39,13 +39,13 @@ CTI_UI_Respawn_GetAvailableLocations = {
 	if ((missionNamespace getVariable "CTI_RESPAWN_MOBILE") > 0) then {
 		_mobile = (CTI_DeathPosition) call CTI_UI_Respawn_GetMobileRespawn;
 		_list = _list + _mobile;
-		{{if (group _x == group player) then {[_ignore_mobile_crew, _x] call CTI_CO_FNC_ArrayPush}} forEach crew _x} forEach _mobile;
+		{{if (group _x == group player) then {_ignore_mobile_crew pushBack _x}} forEach crew _x} forEach _mobile;
 	};
 
 	//--- Add the nearest player's AI (impersonation) minus the mobile's crew
 	if ((missionNamespace getVariable "CTI_RESPAWN_AI") > 0) then {
 		{
-			if (_x distance CTI_DeathPosition <= CTI_RESPAWN_AI_RANGE && !(_x in _ignore_mobile_crew) && !isPlayer _x) then {[_list, _x] call CTI_CO_FNC_ArrayPush};
+			if (_x distance CTI_DeathPosition <= CTI_RESPAWN_AI_RANGE && !(_x in _ignore_mobile_crew) && !isPlayer _x) then {_list pushBack _x};
 		} forEach ((units player - [player]) call CTI_CO_FNC_GetLiveUnits);
 	};
 
@@ -60,7 +60,7 @@ CTI_UI_Respawn_GetMobileRespawn = {
 	_available = [];
 
 	{
-		if (CTI_SPECIAL_MEDICALVEHICLE in (_x getVariable ["cti_spec", []]) && (_x getVariable ["cti_net", -1]) == CTI_P_SideID) then {[_available, _x] call CTI_CO_FNC_ArrayPush};
+		if (CTI_SPECIAL_MEDICALVEHICLE in (_x getVariable ["cti_spec", []]) && (_x getVariable ["cti_net", -1]) == CTI_P_SideID && ((getPosASL _x) select 2)>0) then {_available pushBack _x};
 	} forEach (_center nearEntities [["Car","Air","Tank","Ship","Thing","StaticWeapon"], _range]);
 	_available
 };
@@ -92,7 +92,8 @@ CTI_UI_Respawn_GetRespawnLabel = {
 			_var = missionNamespace getVariable format ["CTI_%1_%2", CTI_P_SideJoined, _location getVariable "cti_structure_type"];
 			_value = (_var select 0) select 1;
 		};
-		case (_location isKindOf "AllVehicles"): { _value = getText(configFile >> "CfgVehicles" >> typeOf _location >> "displayName") };
+		case (_location == (leader group player)) : {_value=format ["[LEADER] %1",name _location]};
+		case (_location isKindOf "AllVehicles"&& !(_location == (leader group player))): { _value = getText(configFile >> "CfgVehicles" >> typeOf _location >> "displayName") };
 	};
 
 	_value
@@ -130,7 +131,7 @@ CTI_UI_Respawn_AppendTracker = {
 	_marker setMarkerSizeLocal [1,1];
 
 	_tracker = uiNamespace getVariable "cti_dialog_ui_respawnmenu_locations_tracker";
-	[_tracker, [_location, _marker]] call CTI_CO_FNC_ArrayPush;
+	_tracker pushBack [_location, _marker];
 
 	if (_location isKindOf "AllVehicles") then {
 		[_location, _marker] spawn {
@@ -153,8 +154,8 @@ CTI_UI_Respawn_AppendTracker = {
 CTI_UI_Respawn_LoadLocations = {
 	private ["_old_locations", "_respawn_locations", "_respawn_locations_formated", "_set", "_spawn"];
 	_respawn_locations = call CTI_UI_Respawn_GetAvailableLocations;
-
-	_respawn_locations = [CTI_DeathPosition, _respawn_locations] call CTI_CO_FNC_SortByDistance;
+	_leader= if (!((leader group player) == player) && isPlayer (leader group player)&& (missionNamespace getVariable "CTI_GROUP_LEADER_RESP") == 1 && ((leader group player) distance (getMarkerPos "prison")) >500 && ((leader group player) distance (getMarkerPos format ["CTI_%1Respawn",side (group player)])) >2000 ) then {[leader group player]} else {[]};
+	_respawn_locations =_leader + ([CTI_DeathPosition, _respawn_locations] call CTI_CO_FNC_SortByDistance);
 	_respawn_locations_formated = (_respawn_locations) call CTI_UI_Respawn_GetListLabels;
 
 	_old_locations = uiNamespace getVariable "cti_dialog_ui_respawnmenu_locations";
@@ -231,7 +232,7 @@ CTI_UI_Respawn_OnRespawnReady = {
 
 	_respawn_ai = false;
 	_respawn_ai_gear = [];
-	if (_where isKindOf "Man") then { //--- The location is an AI?
+	if (_where isKindOf "Man" && ! (isPlayer _where)) then { //--- The location is an AI?
 		if (_where in units player) then { //--- The AI is in the player group?
 			_pos = getPos _where; //--- Get the AI position (todo: copy the stance)
 			_respawn_ai_gear = (_where) call CTI_UI_Gear_GetUnitEquipment; //--- Get the AI current equipment using the Gear UI function
@@ -304,7 +305,7 @@ CTI_UI_Respawn_GetTime={
 	private ["_time_factor","_distance_factor"];
 	_target=_this;
 	_time=240;
-	if (_target in CTI_TOWNS) then {
+	if ((_target in CTI_TOWNS) || (isPlayer _target)) then {
 		_time_factor=((CTI_P_LastDeathTime-CTI_P_LastRespawnTime)/240) min 1;
 		_distance_factor =((CTI_DeathPosition distance _target)/4000) min 1;
 		_time = (missionNamespace getVariable "CTI_RESPAWN_TIMER") max (_time - _time * (_time_factor + _distance_factor));

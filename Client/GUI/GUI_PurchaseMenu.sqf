@@ -6,7 +6,11 @@ _lb_queued_content = [];
 // ((uiNamespace getVariable "cti_dialog_ui_purchasemenu") displayCtrl 110901) ctrlSetStructuredText parseText "<t>Producing: Soldier</t>";
 while { true } do {
 	if (isNil {uiNamespace getVariable "cti_dialog_ui_purchasemenu"}) exitWith {}; //--- Menu is closed.
-
+	if (Client_AN_Connected) then {
+		for "_i" from 110000 to 110007 /* step +1 */ do { ((uiNamespace getVariable "cti_dialog_ui_purchasemenu") displayCtrl _i) ctrlEnable true};
+	}else{
+		for "_i" from 110000 to 110007 /* step +1 */ do { ((uiNamespace getVariable "cti_dialog_ui_purchasemenu") displayCtrl _i) ctrlEnable false};
+	};
 	_factory = uiNamespace getVariable "cti_dialog_ui_purchasemenu_factory";
 	if !(isNil '_factory') then {
 		_in_use = _factory getVariable "cti_inuse";
@@ -21,9 +25,9 @@ while { true } do {
 	};
 
 	_group = uiNamespace getVariable "cti_dialog_ui_purchasemenu_team";
-	_size = (count units _group) - (count (_group getVariable ["last_known_players",[""]])) ;
+	_size = (count units _group) - ({isplayer _x } count (units _group )) ;
 	if (_size != _last_size) then {
-		((uiNamespace getVariable "cti_dialog_ui_purchasemenu") displayCtrl 110902) ctrlSetStructuredText (parseText format["<t align='right'>Group Size: <t color='#66baff'>%1</t>/%2</t>", _size, if (isPlayer leader _group) then {CTI_PLAYERS_GROUPSIZE} else {CTI_AI_TEAMS_GROUPSIZE}]);
+		((uiNamespace getVariable "cti_dialog_ui_purchasemenu") displayCtrl 110902) ctrlSetStructuredText (parseText format[localize "STR_GUI_Group_Size", _size, if (isPlayer leader _group) then {CTI_PLAYERS_GROUPSIZE} else {CTI_AI_TEAMS_GROUPSIZE}]);
 	};
 
 	//--- Remove old content.
@@ -63,7 +67,7 @@ while { true } do {
 		} forEach _lb_queued_content;
 
 		if !(_is_present) then {
-			[_lb_queued_content, _request] call CTI_CO_FNC_ArrayPush;
+			_lb_queued_content pushBack _request;
 			_name = _var select CTI_UNIT_LABEL;
 
 			_label = "";

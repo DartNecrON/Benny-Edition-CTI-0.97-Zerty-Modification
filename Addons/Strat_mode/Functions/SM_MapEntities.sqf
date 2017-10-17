@@ -13,21 +13,25 @@ _cache= SHOWTOMAP;
 
 waitUntil {! isNil {player getVariable "AN_iNet" }};
 _ug=units player;
-if ( (player) getVariable "AN_iNet" == _side_id && (player getVariable ["CTI_Net",-10])>= 0 ) then {_ug=_ug-[player];};
+//if ( (player) getVariable "AN_iNet" == _side_id && (player getVariable ["CTI_Net",-10])>= 0 ) then {_ug=_ug-[player];};
 // player group
 {
 
 	_object = _x;
-	_texture= format ["a3\ui_f\data\map\Markers\NATO\%1inf",CTI_P_MarkerPrefix];
-	_color = [1,1,0,1];
-	if (! alive _object) then {_color = [0,0,0,1];};
-	_pos = getPosASL _x;
 	_size = [18, 18];
-	_text = (_object) call CTI_CL_FNC_GetAIDigit;
-	if (isPlayer _object) then {_text =  format ["[%1]%2",(group _object) getVariable ["cti_alias",CTI_PLAYER_DEFAULT_ALIAS], name _object] };
+	if (vehicle _object != vehicle player || vehicle player == player) then {
+		_texture= format ["a3\ui_f\data\map\Markers\NATO\%1inf",CTI_P_MarkerPrefix];
+		_color = [1,1,0,1];
+		if (! alive _object) then {_color = [0,0,0,1];};
+		_pos = getPosASL _x;
+
+		_text = (_object) call CTI_CL_FNC_GetAIDigit;
+		if (isPlayer _object) then {_text =  format ["[%1]%2",(group _object) getVariable ["cti_alias",CTI_PLAYER_DEFAULT_ALIAS], name _object] };
+		_group set [count _group,[_object,_texture, _color, _pos,_size select 0,_size select 1, 0, _text, 0, 0.05,'TahomaB', 'right']];
+	};
 	if (!isnull (lasertarget _object)) then {_return set [count _return,[lasertarget _object,"\a3\ui_f\data\IGUI\RscIngameUI\RscOptics\laser_designator_iconlaseron", [1,0,0,1],  getPos (lasertarget _object),_size select 0,_size select 1, 0, "", 0, 0.05,'TahomaB', 'right']];};
 	if (!isnull (laserTarget getConnectedUAV _object)) then {_return set [count _return,[lasertarget getConnectedUAV _object,"\a3\ui_f\data\IGUI\RscIngameUI\RscOptics\laser_designator_iconlaseron", [1,0,0,1],  getPos (lasertarget getConnectedUAV _object),_size select 0,_size select 1, 0, "", 0, 0.05,'TahomaB', 'right']];};
-	_group set [count _group,[_object,_texture, _color, _pos,_size select 0,_size select 1, 0, _text, 0, 0.05,'TahomaB', 'right']];
+
 	/*if (_x call AN_Check_Connection && ! isNull(_x getVariable "AN_Conn") ) then {
 			_lines set [count _lines , [_x,visiblePosition _x, visiblePosition (_x getVariable "AN_Conn"),[1,1,0,1]]];
 	};*/
@@ -47,7 +51,7 @@ if ( (player) getVariable "AN_iNet" == _side_id && (player getVariable ["CTI_Net
 		if (!isNil {_object getVariable "CTI_Net"}) then {_side_id=_object getVariable "CTI_Net";};
 		if (!isNil {_object getVariable "AN_iNet"}) then {_side_id=_object getVariable "AN_iNet";};
 		_side= (_side_id)  call CTI_CO_FNC_GetSideFromID;
-		if (_side_id == (player getVariable ["CTI_Net",-10]) && (vehicle _x == _x || !(((vehicle _x ) getVariable ["AN_iNet",-10] )== (_x getVariable ["CTI_Net",-11])))) then {
+		if (vehicle _x == _x && _side_id == (player getVariable ["CTI_Net",-10]) && (vehicle _x == _x || !(((vehicle _x ) getVariable ["AN_iNet",-10] )== (_x getVariable ["CTI_Net",-11])))) then {
 			_p_icon= switch (_side) do
 			{
 		    case 	west:{ "b_" };
@@ -84,7 +88,7 @@ if ( (player) getVariable "AN_iNet" == _side_id && (player getVariable ["CTI_Net
 				};
 			};*/
 		};TRUE} count units _x;TRUE
-}count ((_side call CTI_CO_FNC_GetSideGroups));
+}count ((_side call CTI_CO_FNC_GetSideGroups)-[group player] );
 
 //towns
 
@@ -149,6 +153,9 @@ if ( (player) getVariable "AN_iNet" == _side_id && (player getVariable ["CTI_Net
 		    default { [1,1,1,1]  };
 			};
 			if (! alive _object) then {_color = [0,0,0,1];};
+			_keys=_object getVariable ["v_keys",["",grpNull]];
+			_second_color=_color;
+			if (_object == vehicle player || group player == _keys select 1 || getPlayerUID player == _keys select 0) then  {_second_color = [1,1,0,1];};
 			_pos = getPosASL _x;
 			_size = [25, 25];
 			if (_object isKindOf "Man") then {_size = [18, 18];};
@@ -166,7 +173,7 @@ if ( (player) getVariable "AN_iNet" == _side_id && (player getVariable ["CTI_Net
 				}count crew _x;
 			};
 
-			_return set [count _return,[_object,_texture, _color, _pos,_size select 0,_size select 1, 0, _text, 0, 0.05,'TahomaB', 'right']];
+			_return set [count _return,[_object,_texture, _second_color, _pos,_size select 0,_size select 1, 0, _text, 0, 0.05,'TahomaB', 'right']];
 			if (!isNil {_object getVariable "AN_Conn"} && !(_object isKindOf "Man") && _side_id == (player getvariable ["AN_iNet",-1])) then {
 				if (! isNull(_object getVariable "AN_Conn")) then {
 					_lines set [count _lines , [_object,visiblePosition _object, visiblePosition (_object getVariable "AN_Conn"),_color]];

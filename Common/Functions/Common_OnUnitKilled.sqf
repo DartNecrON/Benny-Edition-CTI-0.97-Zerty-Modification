@@ -111,12 +111,13 @@ if (!isNil '_var' && _isplayable_killer) then {
 				//--- The kill was not made by proxy and the killer is in a vehicle
 				if (!_killed_proxy && vehicle _killer != _killer) then {
 					_vehicle = vehicle _killer;
-					{if (alive _x) then {if !(group _x in _award_groups) then {[_award_groups, group _x] call CTI_CO_FNC_ArrayPush}}} forEach [driver _vehicle, gunner _vehicle, commander _vehicle];
+					{if (alive _x) then {if !(group _x in _award_groups) then { _award_groups pushBack (group _x)}}} forEach [driver _vehicle, gunner _vehicle, commander _vehicle];
 				};
 
 				//--- If there is more than one group to award then we split the bounty equally
-				_mult=if ((missionNamespace getVariable "CTI_GROUP_AWARD_MULT") == 1) then {(count (_group_killer getVariable ["last_known_players",[""]]))} else {1};
-				_bounty = round( _mult * _cost * CTI_VEHICLES_BOUNTY /100);
+				//_mult=if ((missionNamespace getVariable "CTI_GROUP_AWARD_MULT") == 1) then {(count (_group_killer getVariable ["last_known_players",[""]]))} else {1};
+				//_bounty = round( _mult * _cost * CTI_VEHICLES_BOUNTY /100);
+				_bounty = round( _cost * CTI_VEHICLES_BOUNTY /100);
 				if (count _award_groups > 1) then { _bounty = round(_bounty / (count _award_groups))};
 
 				//--- Award

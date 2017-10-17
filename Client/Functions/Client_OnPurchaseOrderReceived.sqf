@@ -23,7 +23,7 @@
 	[SEED, CLASSNAME, BUYER, INFORMATION, FACTORY] spawn CTI_CL_FNC_OnPurchaseOrderReceived
 
   # DEPENDENCIES #
-	Common Function: CTI_CO_FNC_ArrayPush
+
 	Common Function: CTI_CO_FNC_CreateUnit
 	Common Function: CTI_CO_FNC_CreateVehicle
 	Common Function: CTI_CO_FNC_ChangeFunds
@@ -46,7 +46,7 @@ _veh_infos = _this select 4;
 
 _model = _req_classname;
 _var_classname = missionNamespace getVariable _req_classname;
-
+_picture = if ((_var_classname select CTI_UNIT_PICTURE) != "") then {format["<img image='%1' size='2.5'/><br /><br />", _var_classname select CTI_UNIT_PICTURE]} else {""};
 //--- Custom vehicle?
 _script = _var_classname select CTI_UNIT_SCRIPT;
 _customid = -1;
@@ -62,17 +62,9 @@ if (_index == -1) exitWith { diag_log "debug: unknown index in onpurchaseorderre
 CTI_P_PurchaseRequests set [_index, "!REMOVE!"];
 CTI_P_PurchaseRequests = CTI_P_PurchaseRequests - ["!REMOVE!"];
 
-//--- Check if the group can handle the current unit without breaking the group size limit
-_process = false;
-if !(_req_classname isKindOf "Man") then {
-	if (!(_veh_infos select 0) && !(_veh_infos select 1) && !(_veh_infos select 2) && !(_veh_infos select 3)) then { _process = true }; //--- Empty
-};
 
 _req_time_out = time + (_var_classname select CTI_UNIT_TIME);
 
-//--- Soft limit (skip for empty vehicles)
-if !(_process) then { if ((count units (group player))+1 <= CTI_PLAYERS_GROUPSIZE) then { _process = true }};
-if !(_process) exitWith { ["SERVER", "Answer_Purchase", [_req_seed, _req_classname, _req_buyer, _factory]] call CTI_CO_FNC_NetSend }; //--- Can't do it but we answer to the server.
 
 //--- Check if the buyer has enough funds to perform this operation
 _cost = _var_classname select 2;
@@ -97,19 +89,43 @@ if !(_model isKindOf "Man") then { //--- Add the vehicle crew cost if applicable
 };
 
 _funds = [group (_req_buyer), CTI_P_SideJoined] call CTI_CO_FNC_GetFunds;
-if (_funds < _cost) exitWith { ["SERVER", "Answer_Purchase", [_req_seed, _req_classname, _req_buyer, _factory]] call CTI_CO_FNC_NetSend; };
+
+
+if (_funds < _cost) exitWith {
+	["SERVER", "Answer_Purchase", [_req_seed, _req_classname, _req_buyer, _factory]] call CTI_CO_FNC_NetSend;
+	hint parseText format [localize "STR_OnPurchase_NotFunds", _var_classname select CTI_UNIT_LABEL, _picture];
+};
 // [_req_buyer, CTI_P_SideJoined, -_cost] call CTI_CO_FNC_ChangeFunds; //--- Change the buyer's funds
 
 while { time <= _req_time_out && alive _factory } do { sleep .25 };
 
 if !(alive _factory) exitWith { diag_log "the factory is dead" };
-if (_factory in CTI_TOWNS && ! ((_factory getvariable ["cti_town_sideID",-1]) == CTI_P_SideID)) exitWith { ["SERVER", "Answer_Purchase", [_req_seed, _req_classname, _req_buyer, _factory]] call CTI_CO_FNC_NetSend; };
+
+
+if (_factory in CTI_TOWNS && ( ! ((_factory getvariable ["cti_town_sideID",-1]) == CTI_P_SideID) || (_factory getvariable ["cti_town_capture",-1]) != CTI_TOWNS_CAPTURE_VALUE_CEIL || ({!(side _x == CTI_P_SideJoined)} count (_factory nearEntities ["CAManBase", CTI_TOWNS_CAPTURE_RANGE])) >0 ) ) exitWith { ["SERVER", "Answer_Purchase", [_req_seed, _req_classname, _req_buyer, _factory]] call CTI_CO_FNC_NetSend; hint parseText format ["<t size='1.3' color='#BB0000'>Information</t><br /><br />%2<t>Your <t color='#ccffaf'>%1</t> order has been <t color='#fcffaf'>Denied</t>, Flag area is not clear.", _var_classname select CTI_UNIT_LABEL, _picture];};
+
+
+//--- Check if the group can handle the current unit without breaking the group size limit
+_process = false;
+if !(_req_classname isKindOf "Man") then {
+	if (!(_veh_infos select 0) && !(_veh_infos select 1) && !(_veh_infos select 2) && !(_veh_infos select 3)) then { _process = true }; //--- Empty
+};
+
+
 //--- Soft limit (skip for empty vehicles)
-if !(_process) then { if ((count units (group player))+1 <= CTI_PLAYERS_GROUPSIZE) then { _process = true }};
-if !(_process) exitWith { ["SERVER", "Answer_Purchase", [_req_seed, _req_classname, _req_buyer, _factory]] call CTI_CO_FNC_NetSend }; //--- Can't do it but we answer to the server.
+if !(_process) then { if (((count units (group player))- ({isplayer _x} count units (group player))) <= CTI_PLAYERS_GROUPSIZE) then { _process = true }};
+if !(_process) exitWith {
+	["SERVER", "Answer_Purchase", [_req_seed, _req_classname, _req_buyer, _factory]] call CTI_CO_FNC_NetSend ;
+	hint parseText format [localize "STR_OnPurchase_TooMuchUnits", _var_classname select CTI_UNIT_LABEL, _picture]; //--- Can't do it but we answer to the server.
+};
+
+//--- Check funds
 
 _funds = [group(_req_buyer), CTI_P_SideJoined] call CTI_CO_FNC_GetFunds;
-if (_funds < _cost) exitWith { ["SERVER", "Answer_Purchase", [_req_seed, _req_classname, _req_buyer, _factory]] call CTI_CO_FNC_NetSend; };
+if (_funds < _cost) exitWith {
+	["SERVER", "Answer_Purchase", [_req_seed, _req_classname, _req_buyer, _factory]] call CTI_CO_FNC_NetSend;
+	hint parseText format [localize "STR_OnPurchase_NotFunds", _var_classname select CTI_UNIT_LABEL, _picture];
+};
 [group(_req_buyer), CTI_P_SideJoined, -_cost] call CTI_CO_FNC_ChangeFunds; //--- Change the buyer's funds
 
 if (CTI_Log_Level >= CTI_Log_Information) then { ["INFORMATION", "FILE: Client\Functions\Client_OnPurchaseOrderReceived.sqf", format["Purchase order concerning classname [%1] with seed [%2] from [%3] on factory [%4, (%5)] is done. Processing the creation...", _req_classname, _req_seed, _req_buyer, _factory, _factory getVariable "cti_structure_type"]] call CTI_CO_FNC_Log };
@@ -125,7 +141,7 @@ _vehicle = objNull;
 _units = [];
 if (_model isKindOf "Man") then {
 	_vehicle = [_model, group player, _position, CTI_P_SideID, _net] call CTI_CO_FNC_CreateUnit;
-	[_units, _vehicle] call CTI_CO_FNC_ArrayPush;
+	_units pushBack _vehicle;
 } else {
 	_vehicle = [_model, _position, _direction + getDir _factory, CTI_P_SideID, (_veh_infos select 4), true, true] call CTI_CO_FNC_CreateVehicle;
 
@@ -141,20 +157,20 @@ if (_model isKindOf "Man") then {
 		if (_veh_infos select 0) then {
 			_unit = [_crew, group player, _position, CTI_P_SideID, _net] call CTI_CO_FNC_CreateUnit;
 			_unit moveInDriver _vehicle;
-			[_units, _unit] call CTI_CO_FNC_ArrayPush;
+			_units pushBack _unit;
 		};
 
 		{
 			if (count _x == 1 && _veh_infos select 3) then {
 				_unit = [_crew, group player, _position, CTI_P_SideID, _net] call CTI_CO_FNC_CreateUnit;
 				_unit moveInTurret [_vehicle, (_x select 0)];
-				[_units, _unit] call CTI_CO_FNC_ArrayPush;
+				_units pushBack _unit;
 			}; //--- Turret
 
 			if (count _x == 2) then {
 				switch (_x select 1) do {
-					case "Gunner": { if (_veh_infos select 1) then { _unit = [_crew, group player, _position, CTI_P_SideID, _net] call CTI_CO_FNC_CreateUnit; _unit moveInTurret [_vehicle, (_x select 0)]; [_units, _unit] call CTI_CO_FNC_ArrayPush; }};
-					case "Commander": { if (_veh_infos select 2) then { _unit = [_crew, group player, _position, CTI_P_SideID, _net] call CTI_CO_FNC_CreateUnit; _unit moveInTurret [_vehicle, (_x select 0)]; [_units, _unit] call CTI_CO_FNC_ArrayPush; }};
+					case "Gunner": { if (_veh_infos select 1) then { _unit = [_crew, group player, _position, CTI_P_SideID, _net] call CTI_CO_FNC_CreateUnit; _unit moveInTurret [_vehicle, (_x select 0)]; _units pushBack _unit }};
+					case "Commander": { if (_veh_infos select 2) then { _unit = [_crew, group player, _position, CTI_P_SideID, _net] call CTI_CO_FNC_CreateUnit; _unit moveInTurret [_vehicle, (_x select 0)]; _units pushBack _unit; }};
 				};
 			};
 		} forEach (_var_classname select CTI_UNIT_TURRETS);
@@ -186,8 +202,8 @@ if (_script != "" && alive _vehicle) then {
 };
 
 //--- Notify the current client
-_picture = if ((_var_classname select CTI_UNIT_PICTURE) != "") then {format["<img image='%1' size='2.5'/><br /><br />", _var_classname select CTI_UNIT_PICTURE]} else {""};
-hint parseText format ["<t size='1.3' color='#2394ef'>Information</t><br /><br />%4<t>Your <t color='#ccffaf'>%1</t> has arrived from the <t color='#fcffaf'>%2</t> at grid <t color='#beafff'>%3</t></t>", _var_classname select CTI_UNIT_LABEL, (_var select 0) select 1, mapGridPosition _position, _picture];
+
+hint parseText format [localize "STR_Buy_Notify", _var_classname select CTI_UNIT_LABEL, (_var select 0) select 1, mapGridPosition _position, _picture];
 
 //--- send a notice to the server that our order is now complete
 ["SERVER", "Answer_Purchase", [_req_seed, _req_classname, _req_buyer, _factory]] call CTI_CO_FNC_NetSend;

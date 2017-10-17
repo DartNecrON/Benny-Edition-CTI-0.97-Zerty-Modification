@@ -73,7 +73,9 @@ CTI_UI_Gear_DisplayInventory = {
 	{
 		if (_x select 0 != "") then {
 			_config_base = (_x select 0) call CTI_UI_Gear_GetItemBaseConfig;
-			((uiNamespace getVariable "cti_dialog_ui_gear") displayCtrl 70001+_forEachIndex) ctrlSetText getText(configFile >> _config_base >> _x select 0 >> 'picture');
+			_picture = getText(configFile >> _config_base >> _x select 0 >> 'picture');
+			if (_picture == "pictureThing") then { _picture ="\A3\weapons_f\ammoboxes\data\ui\portrait_supplydrop_ca.paa"};
+			((uiNamespace getVariable "cti_dialog_ui_gear") displayCtrl 70001+_forEachIndex) ctrlSetText _picture;
 			((uiNamespace getVariable "cti_dialog_ui_gear") displayCtrl 70001+_forEachIndex) ctrlSetTooltip getText(configFile >> _config_base >> _x select 0 >> 'displayName');
 		} else {
 			((uiNamespace getVariable "cti_dialog_ui_gear") displayCtrl 70001+_forEachIndex) ctrlSetText (_default_clothes select _forEachIndex);
@@ -141,8 +143,8 @@ CTI_UI_Gear_DisplayContainerItems = {
 		{
 			_find = (_items select 0) find _x;
 			if (_find == -1) then {
-				[_items select 0, _x] call CTI_CO_FNC_ArrayPush;
-				[_items select 1, 1] call CTI_CO_FNC_ArrayPush;
+				(_items select 0) pushBack _x;
+				(_items select 1) pushBack 1;
 			} else {
 				(_items select 1) set [_find, ((_items select 1) select _find) + 1];
 			};
@@ -169,7 +171,7 @@ CTI_UI_Gear_DisplayShoppingItems = {
 
 	(_tab) call CTI_UI_Gear_HighlightTab;
 
-	lnbClear 70108;
+	lbClear 70108;
 
 	_list = switch (_tab) do {
 		case CTI_GEAR_TAB_PRIMARY: {missionNamespace getVariable "cti_gear_list_primary"};
@@ -195,28 +197,29 @@ CTI_UI_Gear_DisplayShoppingItems = {
 
 			if !(isNil "_get") then {
 				if (((_get select 0) select 0) <= _upgrade_gear) then { //--- Add the item if it's equal or below the upgrade level
-					_row = lnbAddRow [70108, [getText(configFile >> _get select 2 >> _x >> 'displayName'), format ["$%1", (_get select 0) select 1]]];
-					lnbSetPicture [70108, [_row, 1], getText(configFile >> _get select 2 >> _x >> 'picture')];
-					lnbSetPictureColor [70108, [_row, 1], [1, 1, 1, 1]];
-					lnbSetData [70108, [_row, 0], _x];
+					_row = lbAdd [70108, format ["%1 -- ($%2)",getText(configFile >> _get select 2 >> _x >> 'displayName'), (_get select 0) select 1]];
+					lbSetPicture [70108, _row, getText(configFile >> _get select 2 >> _x >> 'picture')];
+					lbSetPictureColor [70108, _row, [1, 1, 1, 1]];
+					lbSetData [70108,_row, _x];
 				};
 			};
 		} forEach _list;
 	} else { //--- Templates
 		{
 			if ((_x select 4) <= _upgrade_gear) then { //--- Add the template if it's equal or below the upgrade level
-				_row = lnbAddRow [70108, [_x select 0, format ["$%1", _x select 2]]];
-				if (_x select 1 != "") then {lnbSetPicture [70108, [_row, 1], _x select 1]};
-				lnbSetValue [70108, [_row, 0], _x select 5];
-				lnbSetValue [70108, [_row, 1], _forEachIndex];
+				_row = lbAdd [70108, format ["%1 -- ($%2)",_x select 0, _x select 2]];
+				if (_x select 1 != "") then {lbSetPicture [70108, _row, _x select 1]};
+				//lbSetValue [70108, _row, _x select 5];
+				lbSetValue [70108, _row, _forEachIndex];
+				//lnbSetValue [70108, [_row, 1], _forEachIndex];
 			};
 		} forEach _list;
 	};
 
-	if (lnbCurSelRow 70108 != -1 && lnbCurSelRow 70108 < (lnbSize 70108) select 0) then {
-		((uiNamespace getVariable "cti_dialog_ui_gear") displayCtrl 70108) lnbSetCurSelRow lnbCurSelRow 70108;
+	if (lbCurSel  70108 != -1 && lbCurSel  70108 < (lbSize 70108)) then {
+		((uiNamespace getVariable "cti_dialog_ui_gear") displayCtrl 70108) lbSetCurSel lbCurSel 70108;
 	} else {
-		lnbClear ((uiNamespace getVariable "cti_dialog_ui_gear") displayCtrl 70601);
+		lbClear ((uiNamespace getVariable "cti_dialog_ui_gear") displayCtrl 70601);
 	};
 };
 
@@ -462,7 +465,7 @@ CTI_UI_Gear_AddItem = {
 				};
 			};
 		} else {
-			[_item] call CTI_UI_Gear_TryContainerAddItem;
+			_updated =[_item] call CTI_UI_Gear_TryContainerAddItem;
 		};
 	};
 
@@ -497,6 +500,7 @@ CTI_UI_Gear_AddContainerItem = {
 			lnbSetPicture [70109, [_row, 0], getText(configFile >> _config >> _item >> 'picture')];
 			lnbSetData [70109, [_row, 0], _item];
 			lnbSetValue [70109, [_row, 0], 1];
+			lnbSetPictureColor [70109, [_row, 0], [1, 1, 1, 1]];
 		};
 	};
 };
@@ -565,7 +569,7 @@ CTI_UI_Gear_CheckMagazines = {
 	_replace = [];
 	{
 		if (_x in _magazines_old && !(_x in _magazines) && !(_x in _replace)) then {
-			[_replace, _x] call CTI_CO_FNC_ArrayPush;
+			_replace pushBack _x;
 		};
 	} forEach ((((_gear select 1) select 0) select 1) + (((_gear select 1) select 1) select 1) + (((_gear select 1) select 2) select 1));
 
@@ -1185,7 +1189,7 @@ CTI_UI_Gear_UpdateLinkedItems = {
 
 	_config_type = (_item) call CTI_UI_Gear_GetItemBaseConfig;
 
-	if ((lnbSize 70601) select 0 > 0) then {lnbClear 70601};
+	if ((lbSize 70601) > 0) then {lbClear 70601};
 
 	if (_config_type == "CfgWeapons") then {
 		// _magazines = (getArray(configFile >> 'CfgWeapons' >> _item >> 'magazines')) call CTI_CO_FNC_ArrayToLower;
@@ -1202,10 +1206,10 @@ CTI_UI_Gear_UpdateLinkedItems = {
 			_get = missionNamespace getVariable _x;
 
 			if !(isNil "_get") then {
-				_row = lnbAddRow [70601, [getText(configFile >> _get select 2 >> _x >> 'displayName'), format ["$%1", (_get select 0) select 1]]];
-				lnbSetPicture [70601, [_row, 1], getText(configFile >> _get select 2 >> _x >> 'picture')];
-				lnbSetPictureColor [70601, [_row, 1], [1,1,1,1]];
-				lnbSetData [70601, [_row, 0], toLower(_x)];
+				_row = lbAdd[70601, format ["%1 -- ($%2)",getText(configFile >> _get select 2 >> _x >> 'displayName'), (_get select 0) select 1]];
+				lbSetPicture [70601, _row, getText(configFile >> _get select 2 >> _x >> 'picture')];
+				lbSetPictureColor [70601, _row, [1,1,1,1]];
+				lbSetData [70601, _row, toLower(_x)];
 			};
 		} forEach (_magazines call CTI_CO_FNC_ArrayToLower);
 	};
@@ -1219,11 +1223,10 @@ CTI_UI_Gear_GetGearCostDelta = {
 
 	_gear_old_flat = (_gear_old) call CTI_CO_FNC_ConvertGearToFlat;
 	_gear_new_flat = (_gear_new) call CTI_CO_FNC_ConvertGearToFlat;
-
 	_cost = 0;
 	{
 		_find = _gear_new_flat find _x;
-		_item_cost = (_x) call CTI_CO_FNC_GetGearItemCost;
+		_item_cost = if (typeName ((missionNamespace getVariable [_x,[0,0]]) select 1) == "ARRAY") then {(_x) call CTI_CO_FNC_GetGearItemCost} else {0};
 		if (_find != -1) then {
 			_gear_new_flat set [_find, false];
 		} else {
@@ -1256,7 +1259,6 @@ CTI_UI_Gear_UpdatePrice = {
 
 CTI_UI_Gear_EquipTemplate = {
 	_index = _this;
-
 	_gear = +(((missionNamespace getVariable "cti_gear_list_templates") select _index) select 3);
 
 	uiNamespace setVariable ["cti_dialog_ui_gear_target_gear", _gear];
@@ -1270,46 +1272,12 @@ CTI_UI_Gear_EquipTemplate = {
 	(_gear) call CTI_UI_Gear_DisplayInventory;
 };
 
-CTI_UI_Gear_LoadAvailableUnits = {/*
-	_structures = (CTI_P_SideJoined) call CTI_CO_FNC_GetSideStructures;
-	_list = [];
-	_fobs = CTI_P_SideLogic getVariable ["cti_fobs", []];
-	_vh=[];
-	{
-		_v=_x;
-		if ( ({_x== (vehicle _v)} count _vh) <1  && ! ((vehicle _v) == _v)) then {_vh =_vh+[vehicle _v];};
-	} forEach ((group player) call CTI_CO_FNC_GetLiveUnits);
-	_u=((group player) call CTI_CO_FNC_GetLiveUnits)+_vh;
-
-
-
-	{
-		_nearest = [CTI_BARRACKS, _x, _structures, CTI_BASE_GEAR_RANGE] call CTI_CO_FNC_GetClosestStructure;
-		_ammo_trucks = ([_x, CTI_SPECIAL_AMMOTRUCK, CTI_BASE_GEAR_RANGE/4] call CTI_CO_FNC_GetNearestSpecialVehicles) + ([_x, CTI_SPECIAL_MEDICALVEHICLE, CTI_BASE_GEAR_RANGE/4] call CTI_CO_FNC_GetNearestSpecialVehicles);
-		_fob_in_range = false;
-		if (count _fobs > 0) then {
-			_fob = [_x, _fobs] call CTI_CO_FNC_GetClosestEntity;
-			if (_fob distance _x <= (CTI_BASE_GEAR_FOB_RANGE*2)) then {_fob_in_range = true};
-		};
-		if (!isNull _nearest || _x == player || count _ammo_trucks > 0 || _fob_in_range) then {//todo add fob
-			[_list, _x] call CTI_CO_FNC_ArrayPush;
-			if (_x isKindOf "Man") then {
-				((uiNamespace getVariable "cti_dialog_ui_gear") displayCtrl 70201) lbAdd Format["[%1] %2", _x call CTI_CL_FNC_GetAIDigit, getText(configFile >> "CfgVehicles" >> typeOf _x >> "displayName")];
-			} else {
-				((uiNamespace getVariable "cti_dialog_ui_gear") displayCtrl 70201) lbAdd Format["%1", getText(configFile >> "CfgVehicles" >> typeOf _x >> "displayName")];
-			};
-		};
-	} forEach _u;
-	//} forEach ((group player) call CTI_CO_FNC_GetLiveUnits);
-
-	uiNamespace setVariable ["cti_dialog_ui_gear_units", _list];
-
-	((uiNamespace getVariable "cti_dialog_ui_gear") displayCtrl 70201) lbSetCurSel 0;*/
+CTI_UI_Gear_LoadAvailableUnits = {
 	_fobs = CTI_P_SideLogic getVariable ["cti_fobs", []];
 	_structures = (CTI_P_SideJoined) call CTI_CO_FNC_GetSideStructures;
 	_static=[CTI_BARRACKS, _structures] call CTI_CO_FNC_GetSideStructuresByType;
 	_mobiles=[];
-	{if (((CTI_SPECIAL_GEAR in (_x getVariable ["cti_spec",[]])) || (CTI_SPECIAL_AMMOTRUCK in (_x getVariable ["cti_spec",[]])) && (missionNamespace getvariable "CTI_GAMEPLAY_REARM_AMMO")>0 || (CTI_SPECIAL_MEDICALVEHICLE in (_x getVariable ["cti_spec",[]])) && (missionNamespace getvariable "CTI_GAMEPLAY_REARM_MED")<= (((CTI_P_SideJoined) call CTI_CO_FNC_GetSideUpgrades) select CTI_UPGRADE_REST) )&& alive _x && (_x getVariable ["cti_occupant",CTI_P_SideJoined])== CTI_P_SideJoined) then {_mobiles set [count _mobiles,_x]};true }count ((CTI_WEST getvariable ["cti_service", []]) + (CTI_EAST getvariable ["cti_service", []]));
+	//{if (((CTI_SPECIAL_GEAR in (_x getVariable ["cti_spec",[]])) || (CTI_SPECIAL_AMMOTRUCK in (_x getVariable ["cti_spec",[]])) && (missionNamespace getvariable "CTI_GAMEPLAY_REARM_AMMO")>0 || (CTI_SPECIAL_MEDICALVEHICLE in (_x getVariable ["cti_spec",[]])) && (missionNamespace getvariable "CTI_GAMEPLAY_REARM_MED")<= (((CTI_P_SideJoined) call CTI_CO_FNC_GetSideUpgrades) select CTI_UPGRADE_REST) )&& alive _x && (_x getVariable ["cti_occupant",CTI_P_SideJoined])== CTI_P_SideJoined) then {_mobiles set [count _mobiles,_x]};true }count ((CTI_WEST getvariable ["cti_service", []]) + (CTI_EAST getvariable ["cti_service", []]));
 	_candidates=[];
 	{_candidates = _candidates +(nearestObjects [_x,["Car_F","Tank","CAManBase","Air","Ship","ReammoBox_F"],CTI_BASE_GEAR_RANGE] );true}count (_static+_mobiles+_fobs);
 	_real_candidates=[];
@@ -1349,7 +1317,6 @@ CTI_UI_Gear_RemoveProfileTemplate = {
 	_templates = profileNamespace getVariable format["CTI_PERSISTENT_GEAR_TEMPLATE_%1", CTI_P_SideJoined];
 	_index = -1;
 	{if ((_x select 5) == _seed) exitWith {_index = _forEachIndex}} forEach _templates;
-
 	if (_index > -1) then {
 		_templates set [_index, "!nil!"];
 		_templates = _templates - ["!nil!"];

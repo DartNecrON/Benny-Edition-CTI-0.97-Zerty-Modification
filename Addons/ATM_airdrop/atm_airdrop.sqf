@@ -12,14 +12,19 @@ waitUntil { !isNull player };
 [] execVM "Addons\ATM_airdrop\functions.sqf";
 
 _funds = [group player, CTI_P_SideJoined] call CTI_CO_FNC_GetFunds;
-if (_funds < 500) exitWith {hintsilent "Not enougth funds"; sleep 1 ; hintsilent ""};
+if (_funds < 500) exitWith {
+	hintsilent localize "STR_HALO_No_Funds";
+	sleep 1;
+	hintsilent ""
+};
 
+CTI_Selecting_Halo=true;
 _position = GetPos player;
 _z = _position select 2;
 Altitude = CTI_HALO_ALTITUDE;
 
 
-hint parseText "<t size='1.3' color='#2394ef'>HALO JUMP</t><br /><br />Select your destination ! <br /> <t color='#ccffaf'> You can only jump in the yellow circle around owned towns.</t>";
+hint parseText localize "STR_HALO_Info";
 
 openMap true;
 ATM_Jump_mapclick = false;
@@ -28,9 +33,11 @@ onMapSingleClick 'ATM_Jump_clickpos = _pos; _ct =[ATM_Jump_clickpos, CTI_P_SideJ
 //onMapSingleClick 'ATM_Jump_clickpos = _pos; ATM_Jump_mapclick = true; onMapSingleClick ""; true;';
 
 waitUntil {ATM_Jump_mapclick or !(visiblemap)};
+CTI_Selecting_Halo=false;
 if (!visibleMap) exitwith {
-	systemChat "Halo jump canceled.";
+	systemChat localize "STR_HALO_Cancel";
 	hintsilent "";
+
 	breakOut "main";
 };
 [group player, CTI_P_SideJoined, - 500] call CTI_CO_FNC_ChangeFunds;
@@ -45,6 +52,7 @@ ATM_Jump_mapclick = if(true) then{
 	'];
 };
 
+
 _target = player;
 _loadout=[_target] call Getloadout;
 
@@ -58,12 +66,12 @@ openMap false;
 
 
 removeBackpack _target;
-sleep 0,5;
+sleep 0.5;
 _target addBackpack "B_Parachute";
 if ((getPos _target select 2) >= 8000) then{
 	removeHeadgear _target;
 	_target addHeadgear "H_CrewHelmetHeli_B";
-	sleep 0,5;
+	sleep 0.5;
 };
 
 
@@ -79,7 +87,7 @@ while {(getPos _target select 2) > 2} do {
 	};
 };
 
-hint parseText "<t size='1.3' color='#2394ef'>HALO JUMP</t><br /><br />Loading your gear back <br />";
+hint parseText localize "STR_HALO_Load";
 
 
 deletevehicle (_target getvariable "lgtarray"); _target setvariable ["lgtarray",nil,true];
@@ -95,6 +103,7 @@ if(!alive _target) then {
 	0=[_target,_loadout] call Setloadout;
 };
 deleteMarker "mkr_halo";
-hint parseText "<t size='1.3' color='#2394ef'>HALO JUMP</t><br /><br />GEAR LOADED <br />";
+hint parseText localize "STR_HALO_Gear_Load";
 sleep 3;
+if (alive _target) then {CTI_HALO_LASTTIME=time;};
 hintsilent "";

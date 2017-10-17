@@ -3,7 +3,7 @@
 #define DIK_TILDE             0x29
 
 
-NET_LOG=True;
+NET_LOG=false;
 
 CTI_P_SideJoined = side player;
 
@@ -43,7 +43,7 @@ CTI_CL_FNC_OnTownCaptured = compileFinal preprocessFile "Client\Functions\Client
 CTI_CL_FNC_PurchaseUnit = compileFinal preprocessFile "Client\Functions\Client_PurchaseUnit.sqf";
 CTI_CL_FNC_RemoveRuins = compileFinal preprocessFile "Client\Functions\Client_RemoveRuins.sqf";
 
-
+TUTORIAL_RUN = compileFinal preprocessFile "Addons\Strat_mode\Functions\TUTORIAL_run.sqf";
 
 
 call compile preprocessFileLineNumbers "Client\Functions\FSM\Functions_FSM_UpdateClientAI.sqf";
@@ -79,25 +79,21 @@ CTI_P_RapidDefence=-1;
 CTI_P_Coloration_Money = "#BAFF81";
 CTI_P_Locks=[];
 CTI_P_Interaction=false;
-CTI_DIALOGS=["cti_dialog_ui_interractions","cti_dialog_ui_tabletmain","cti_dialog_ui_buildmenu","cti_dialog_ui_videosettingsmenu","cti_dialog_ui_transferresourcesmenu","cti_dialog_ui_servicemenu","cti_dialog_ui_purchasemenu","cti_dialog_ui_upgrademenu","cti_dialog_ui_workersmenu","cti_dialog_ui_defensemenu","cti_dialog_ui_requestmenu","cti_dialog_ui_onlinehelpmenu","cti_dialog_ui_gear","cti_dialog_ui_satcam","cti_dialog_ui_unitscam","cti_dialog_ui_teamsmenu","cti_dialog_ui_mapcommandmenu","cti_dialog_ui_aimicromenu","cti_dialog_ui_artillerymenu","cti_dialog_ui_aircraftloadoutmenu"];
+CTI_DIALOGS=["cti_dialog_ui_interractions","cti_dialog_ui_tabletmain","cti_dialog_ui_buildmenu","cti_dialog_ui_videosettingsmenu","cti_dialog_ui_transferresourcesmenu","cti_dialog_ui_servicemenu","cti_dialog_ui_purchasemenu","cti_dialog_ui_upgrademenu","cti_dialog_ui_workersmenu","cti_dialog_ui_defensemenu","cti_dialog_ui_requestmenu","cti_dialog_ui_onlinehelpmenu","cti_dialog_ui_gear","cti_dialog_ui_satcam","cti_dialog_ui_unitscam","cti_dialog_ui_teamsmenu","cti_dialog_ui_mapcommandmenu","cti_dialog_ui_aimicromenu","cti_dialog_ui_artillerymenu"];
 CTI_TABLET_DIALOG="cti_dialog_ui_tabletmain";
+HUD_NOTIFICATIONS=[];
 
 //--- Artillery Computer is only enabled on demand
 enableEngineArtillery true;
 if ((missionNamespace getVariable "CTI_ARTILLERY_SETUP") != -1) then {enableEngineArtillery false};
 
+
+12452 cutText [localize "STR_Begin_Tut", "BLACK FADED", 50000];
 if (isMultiplayer) then {
-	//--- Can I join?
-		missionNamespace setVariable ["CTI_PVF_Client_JoinRequestAnswer", {_this spawn CTI_CL_FNC_JoinRequestAnswer}]; //--- Early PVF, do not spoil the game with the others.
-
-		_last_req = -100;
-		while {!CTI_P_CanJoin} do {
-			if (time - _last_req > 15) then {_last_req = time; ["SERVER", "Request_Join", [player, CTI_P_SideJoined]] call CTI_CO_FNC_NetSend};
-			sleep 1;
-		};
-
-	12452 cutText ["Receiving mission intel... If you are getting an error press ESC and respawn and then reconnect.", "BLACK IN", 5];
-
+	12452 cutText [localize "STR_Begin_Tut_1", "BLACK FADED", 50000];
+	waitUntil {!isnil {player getVariable "CTI_SERVER_ANWSER"}};
+	12452 cutText [localize "STR_Begin_Tut_2", "BLACK FADED", 50000];
+	(player getVariable "CTI_SERVER_ANWSER") call CTI_CL_FNC_JoinRequestAnswer;
 	if (CTI_P_Jailed) then {
 		hintSilent "The ride never ends!";
 		0 spawn CTI_CL_FNC_OnJailed;
@@ -170,10 +166,6 @@ if (isNil {profileNamespace getVariable "CTI_PERSISTENT_HINTS"}) then { profileN
 
 	CTI_Init_CommanderClient = true;
 
-	if !(call CTI_CL_FNC_IsPlayerCommander ||(side player == resistance))  then {
-		//--- Execute the client orders context
-		execFSM "Client\FSM\update_orders.fsm";
-	};
 
 	call CTI_CL_FNC_AddMissionActions;
 
@@ -191,8 +183,7 @@ if (isNil {profileNamespace getVariable "CTI_PERSISTENT_HINTS"}) then { profileN
 
 //--- Gear templates (persitent)
 if !(CTI_P_SideJoined == resistance) then {if (isNil {profileNamespace getVariable format["CTI_PERSISTENT_GEAR_TEMPLATE_%1", CTI_P_SideJoined]}) then {call CTI_UI_Gear_InitializeProfileTemplates};
-// profileNamespace setVariable [format["CTI_PERSISTENT_GEAR_TEMPLATE_%1", CTI_P_SideJoined], nil];
-// saveProfileNamespace;
+
 if !(isNil {profileNamespace getVariable format["CTI_PERSISTENT_GEAR_TEMPLATE_%1", CTI_P_SideJoined]}) then {execVM "Client\Init\Init_Persistent_Gear.sqf"};};
 
 //--- Graphics/video thread (persistent)
@@ -244,7 +235,7 @@ TABLET_KEY_DOWN={
 	_return=false;
 	disableSerialization;
 
-	if (! (_this select 2) && ! (_this select 3) && ! (_this select 4) &&(_this select 1) in ([(profilenamespace getvariable ['CTI_TABLET_KEY',41])]+(actionKeys "User5"))  && !visibleMap && !CTI_P_PreBuilding &&!CTI_P_Repairing && isNull (uiNamespace getVariable ['cti_dialog_ui_interractions',objNull]) && isNull (uiNamespace getVariable ['cti_dialog_ui_defensemenu',objnull]) && isNull (uiNamespace getVariable ['cti_dialog_ui_purchasemenu',objnull]) && isnull (uiNamespace getVariable ["cti_dialog_ui_tabletmain",objnull]) ) then {
+	if (! (_this select 2) && ! (_this select 3) && ! (_this select 4) &&(_this select 1) in ([(profilenamespace getvariable ['CTI_TABLET_KEY',41])]+(actionKeys "User5"))  && !visibleMap && !CTI_P_PreBuilding &&!CTI_P_Repairing && isNull (uiNamespace getVariable ['cti_dialog_ui_interractions',objNull]) && isNull (uiNamespace getVariable ['cti_dialog_ui_defensemenu',objnull]) && isNull (uiNamespace getVariable ['cti_dialog_ui_purchasemenu',objnull]) && isnull (uiNamespace getVariable ["cti_dialog_ui_tabletmain",objnull]) && (isnull (findDisplay 60490))) then {
 			uiNamespace setVariable ["INT_TARG", call TABLET_GET_TARGET];
 			createdialog "CTI_RscInteraction";
 			_return=true;
@@ -254,7 +245,7 @@ TABLET_KEY_DOWN={
 TABLET_KEY_UP={
 	_return=false;
 	disableSerialization;
-	if (! (_this select 2) && ! (_this select 3) && ! (_this select 4) && (_this select 1) in [(profilenamespace getvariable ['CTI_TABLET_KEY',41])]  && !isNil {uiNamespace getVariable 'cti_dialog_ui_interractions'}&& isNil {uiNamespace getVariable 'cti_dialog_ui_purchasemenu'} && isNil {uiNamespace getVariable 'cti_dialog_ui_buildmenu'} && isNil {uiNamespace getVariable 'cti_dialog_ui_defensemenu'}&& isNil {uiNamespace getVariable 'cti_dialog_ui_gear'}&& isNil {uiNamespace getVariable 'cti_dialog_ui_aircraftloadoutmenu'} && isnil {uiNamespace getVariable "cti_dialog_ui_tabletmain"} ) then {
+	if (! (_this select 2) && ! (_this select 3) && ! (_this select 4) && (_this select 1) in [(profilenamespace getvariable ['CTI_TABLET_KEY',41])]  && !isNil {uiNamespace getVariable 'cti_dialog_ui_interractions'}&& isNil {uiNamespace getVariable 'cti_dialog_ui_purchasemenu'} && isNil {uiNamespace getVariable 'cti_dialog_ui_buildmenu'} && isNil {uiNamespace getVariable 'cti_dialog_ui_defensemenu'}&& isNil {uiNamespace getVariable 'cti_dialog_ui_gear'} && isnil {uiNamespace getVariable "cti_dialog_ui_tabletmain"} && (isnull (findDisplay 60490)) ) then {
 		closeDialog 0;
 	};
 	_return
@@ -275,35 +266,17 @@ TABLET_GET_TARGET={
 
 0 spawn {
 	disableSerialization;
+	waitUntil {!isNil {findDisplay 46} && !isNull (findDisplay 46) && !isnil "TABLET_KEY_DOWN" && !isNil "TABLET_KEY_UP"};
 	_maindisplay=findDisplay 46;
-	while {isNull _maindisplay} do {
-		_maindisplay=findDisplay 46;
-		sleep 0.1;
-	};
-	_maindisplay  displayAddEventHandler ["KeyDown", TABLET_KEY_DOWN];
-	_maindisplay  displayAddEventHandler ["KeyUp", TABLET_KEY_UP];
+	//_maindisplay displayRemoveAllEventHandlers  "KeyDown";
+	//_maindisplay displayRemoveAllEventHandlers  "KeyUp";
+	sleep 0.5;
+	KD_BECTI=_maindisplay  displayAddEventHandler ["KeyDown", TABLET_KEY_DOWN];
+	KU_BECTI=_maindisplay  displayAddEventHandler ["KeyUp", TABLET_KEY_UP];
 };
 
 
-if (/*profileNamespace getVariable "CTI_PERSISTENT_HINTS"*/true) then {
-	0 spawn {
-		sleep 2;
-		createdialog "CTI_RscTabletOnlineHelpMenu";
 
-	};
-};
-
-0 spawn
-{
-	while {!CTI_GameOver} do
-	{
-		if (animationState player == "acinpknlmstpsraswrfldnon_acinpercmrunsraswrfldnon" || animationState player == "helper_switchtocarryrfl" || animationState player == "AcinPknlMstpSrasWrflDnon") then
-		{
-			if (! isNull (player getvariable ["REV_DRAGGING",objnull])) then{player switchMove "AcinPknlMstpSrasWrflDnon";}	else{player switchMove "amovpknlmstpsraswrfldnon";};
-		};
-		sleep 3;
-	};
-};
 
 if (CTI_BASE_NOOBPROTECTION == 1) then {player addEventHandler ["fired", {_this spawn CTI_CL_FNC_OnPlayerFired}]}; //--- Trust me, you want that
 
@@ -315,7 +288,26 @@ if (missionNamespace getVariable "CTI_TROPHY_APS" == 1) then {
 if ((missionNamespace getVariable "CTI_UNITS_FATIGUE") == 0) then {player enableFatigue false} else  {player enableFatigue true}; //--- Disable the unit's fatigue
 ["SERVER", "Request_NoobLogger", [player,0]] call CTI_CO_FNC_NetSend;
 0 execVM "Addons\MapMarkersTitling.sqf";
-
+0 execFSM "Addons\Strat_mode\FSM\dynamic_group.fsm";
 
 CTI_Init_Client = true;
+
+
+12452 cutText [localize "STR_Begin_Tutorial", "BLACK IN", 7];
+
+
+0 call TUTORIAL_RUN;
+
+//Save data
+//==========
+_uid=getPlayerUID player;
+if (!(isMultiplayer) && isnil {missionNamespace getVariable format["CTI_SERVER_CLIENT_%1", _uid]} ) then {
+	missionNamespace setVariable [format["CTI_SERVER_CLIENT_%1", _uid],[_uid,CTI_P_SideJoined, (missionNamespace getVariable format ["CTI_ECONOMY_STARTUP_FUNDS_%1", CTI_P_SideJoined]),group player]];
+};
+// Done
+//==========
+CTI_Init_Group= true;
+
+
+
 

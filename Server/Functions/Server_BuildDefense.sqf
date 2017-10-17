@@ -58,7 +58,7 @@ if (_fob) then {
 };
 
 _defense = (_var select 1) createVehicle _position;
-_logic setVariable ["cti_defences",((_logic getVariable "cti_defences")+ [_defense]),true];
+_logic setVariable ["cti_defences",((_logic getVariable "cti_defences")+ [_defense] - [objNull]),true];
 [["CLIENT", _side], "Client_HandleDefense", _defense] call CTI_CO_FNC_NetSend;
 
 
@@ -85,7 +85,7 @@ if (_fob) then {
 	_logic setVariable ["cti_fobs", (_logic getVariable "cti_fobs") + [_defense], true];
 
 };
-
+_defense setVariable ["cti_save",[_varname,[_position,_direction],_manned],false];
 _defense setDir _direction;
 _defense setPos _position;
 if (_defense emptyPositions "gunner" < 1 && !_fob) then { //--- Soft defense

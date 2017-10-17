@@ -21,7 +21,7 @@
 	[SIDE, RUIN, STRUCTURE VARIABLE, POSITION, DIRECTION] spawn CTI_SE_FNC_HandleStructureConstruction
 
   # DEPENDENCIES #
-	Common Function: CTI_CO_FNC_ArrayPush
+
 	Common Function: CTI_CO_FNC_GetClosestEntity
 	Common Function: CTI_CO_FNC_GetSideID
 	Common Function: CTI_CO_FNC_GetSideLogic
@@ -55,6 +55,7 @@ _lasttouch = time;
 
 //--- Await for the site to be constructed or "abandonned"
 while {_completion > 0 && _completion < 100} do {
+	waitUntil {!isNil {_structure getVariable "cti_completion"}};
 	_completion = _structure getVariable "cti_completion";
 	sleep CTI_BASE_CONSTRUCTION_DECAY_DELAY;
 
@@ -77,7 +78,7 @@ if (_completion >= 100) then {
 	_structure setPos _position;
 	_structure setDir _direction;
 	_structure setVectorUp [0,0,0];
-
+	_structure setVariable ["cti_save", _variable,false];
 	_structure setVariable ["cti_structure_type", ((_var select 0) select 0)];
 
 	//--- Do we use our alternative damage system to prevent some bisteries from happening?
@@ -109,7 +110,7 @@ if (_completion >= 100) then {
 	{
 		_pos = getPos _x;
 		_pos = [_pos select 0, _pos select 1];
-		[_structures_positions, _pos] call CTI_CO_FNC_ArrayPush;
+		_structures_positions pushBack _pos;
 	} forEach ((_side call CTI_CO_FNC_GetSideStructures) + (_logic getVariable "cti_structures_wip"));
 
 	//--- Check for empty areas now

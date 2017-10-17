@@ -32,7 +32,7 @@ with missionNamespace do {
 		CTI_SM_Connect = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\SM_Connect.sqf";
 		TR_PROJ_HANDLER = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\TR_proj_handler.sqf";
 		TR_HANDLER = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\TR_handler.sqf";
-		F_REVAMP = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\F_revamp.sqf";
+		F_REVAMP_FRAME = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\F_revamp_frame.sqf";
 		SM_BP_Init = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\SM_BP_Init.sqf";
 		SM_BP_Hook = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\SM_BP_Hook.sqf";
 		SM_BP_Link = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\SM_BP_Link.sqf";
@@ -42,12 +42,15 @@ with missionNamespace do {
 	  	REV_INIT = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\REV\REV_init.sqf";
 	  	SM_ACTION_BUILD = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\SM_Action_Build.sqf";
 	    SM_ACTION_REPAIR = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\SM_Action_Repair.sqf";
+	    SM_ACTION_DISMANTLE = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\SM_Action_Dismantle.sqf";
 	    SM_COM_Init = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Old_Com_Eject\SM_COM_init.sqf";
-	   	HCGA_Init = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\HC_GA\HCGA_Init.sqf";
 	   	UAV_FUEL = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\UAV_Fuel.sqf";
 	   	UAV_RANGE = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\UAV_Range.sqf";
 	   	DYNG_WAIT = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\DYNG_waitforgroup.sqf";
 	   	DYNG_SERVERLOOP = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\DYNG_serverloop.sqf";
+	   	H_PROTECT_WHEELS= compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\handler_protec_wheels.sqf";
+	   	WEATHER_HOOK= compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\WEATHER_HOOK.sqf";
+	   	TUTO_Init_Client= compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\TUTORIAL_init_client.sqf";
 };
 
 //Common stuff
@@ -64,6 +67,13 @@ HUD_T_OBJ=[];
 
 
 0 call SM_COM_Init;
+
+with missionNamespace do {
+
+	CTI_PVF_Protect_Wheels ={
+		_this addEventHandler ["HandleDamage",{_this call H_PROTECT_WHEELS}];
+	};
+};
 
 if (CTI_IsServer) then {
 
@@ -83,10 +93,38 @@ if (CTI_IsServer) then {
 
 	//dynamic group loop
 	0 spawn DYNG_SERVERLOOP;
-
+	0 execFSM "Addons\Strat_mode\FSM\TEAMSTACK_count.fsm";
 	//PVF
 	with missionNamespace do {
+		CTI_PVF_Server_Transfer_funds ={
+			_group_from= _this select 0;
+			_fund_from= _this select 1;
+			_group_to= _this select 2;
+			_value= _this select 3;
+			_com= (side _group_from) call CTI_CO_FNC_GetSideCommander;
+			if (((_group_from getvariable "cti_funds") - (missionNamespace getVariable format ["CTI_ECONOMY_STARTUP_FUNDS_%1", side _group_from]) < _value && _group_from != _com )|| (_group_from == _com && ((side _group_from) call CTI_CO_FNC_GetFundsCommander) < _value )  ) exitWith {};
+			if (_group_to != _com) then {[_group_to, side _group_to, _value] call CTI_CO_FNC_ChangeFunds;
+			} else {
+				[(side _group_to), _value] call CTI_CO_FNC_ChangeFundsCommander;
+			};
+			if (_group_from != _com) then {[_group_from, side _group_from,  - _value] call CTI_CO_FNC_ChangeFunds;
+			} else {
+				[(side _group_from), - _value] call CTI_CO_FNC_ChangeFundsCommander;
+			};
 
+
+			if (isPlayer leader _group_from) then {
+				_uid=getPlayerUID (leader _group_from );
+				if !(isNil "_get") then {
+					_get = missionNamespace getVariable format["CTI_SERVER_CLIENT_%1", _uid];
+					_get set [2,floor (_group_from getVariable "cti_funds")];
+					missionNamespace setVariable [format["CTI_SERVER_CLIENT_%1", _x],_get];
+				};
+			};
+			if (isPlayer leader _group_to) then {
+				[["CLIENT", leader _group_to], "Client_OnMessageReceived", ["funds-transfer", [_value ,(_group_from)]]] call CTI_CO_FNC_NetSend;
+			};
+		};
 
 		CTI_PVF_Server_Mortars_Towns = {
 			_req_p=_this;
@@ -117,7 +155,6 @@ if (CTI_IsServer) then {
 						_side=(_this select 1);
 						_sl= (_this select 1) call CTI_CO_FNC_GetSideLogic;
 						_to=time+180;
-						//waitUntil {({_x knowsabout _o >(missionNamespace getVariable "CTI_EW_HUD_S")} count (_side call CTI_CO_FNC_GetSidePlayerGroups) == 0 )};
 						waitUntil {time > _to};
 						while {HUD_WRITE} do {sleep random (1);};
 						HUD_WRITE=true;
@@ -127,10 +164,9 @@ if (CTI_IsServer) then {
 						HUD_WRITE=false;
 					}; true
 				} count (_this select 0);
-				//if !((_this select 0) in _hud) then { _hud set [count _hud, (_this select 0)]};
+
 				_sl setVariable ["CTI_HUD_SHARED",_hud,true];
 				HUD_WRITE=false;
-				// [["CLIENT",(_this select 1)], "Client_HUD_reveal",[(_this select 0)]] call CTI_CO_FNC_NetSend;
 			};
 		};
 
@@ -141,6 +177,11 @@ if (CTI_IsServer) then {
 		CTI_PVF_Server_Assign_Zeus= {
   		_this  assignCurator ADMIN_ZEUS;
 		};
+		CTI_PVF_Server_UAV_FUEL={
+			if (missionNamespace getvariable "CTI_GAMEPLAY_DARTER_FUEL" > 0) then {
+				_this spawn UAV_FUEL;
+			};
+		};
 	};
 
 };
@@ -149,7 +190,7 @@ if (CTI_IsClient) then {
 	//PFV
 	with missionNamespace do {
 		//print a message
-		CTI_PVF_SM_message={ CTI_P_ChatID commandChat format ["Strat Mode : %1 ",_this] };
+		CTI_PVF_SM_message={ HUD_NOTIFICATIONS pushBack [format [localize "STR_Strat",_this],time+10000,"ffffff"] };
 
 
 		// Connect Marker 2 positions (POs1,POs2, color, offset)
@@ -177,6 +218,10 @@ if (CTI_IsClient) then {
 			_marker setMarkerColorLocal  ((_side) call CTI_CO_FNC_GetSideColoration);
 			_marker setMarkerAlphaLocal 0.5;
 		};
+		CTI_PVF_SetFuel={
+			diag_log format [":: Fuel :: setting %1 at %2", _this select 0 , _this select 1];
+			(vehicle (_this select 0)) setfuel (_this select 1);
+		};
 	};
 
 	waitUntil {! isNil  {missionNamespace getVariable "CTI_PVF_Client_Base_Zone"} && ! isNil {missionNamespace getVariable "CTI_PVF_Client_Update_Mortars"} && ! isNil  {missionNamespace getVariable "CTI_PVF_Client_Connect"}&&  ! isNil {missionNamespace getVariable "CTI_PVF_SM_message"} };
@@ -185,7 +230,7 @@ if (CTI_IsClient) then {
 			_town=_x;
 			_marker = createMarkerLocal [format ["cti_town_mortar_%1", _town], getPos _town];
 			_marker setMarkerTypeLocal "mil_dot";
-			_marker setMarkerTextLocal format ["Mortar Team - %1",(_town getVariable "cti_town_name")];
+			_marker setMarkerTextLocal format [localize "STR_MortarTeam",(_town getVariable "cti_town_name")];
 			_marker setMarkerColorLocal "ColorGreen";
 			_marker setMarkerSizeLocal [0.5,0.5];
 			_marker setMarkerAlphaLocal 0;
@@ -216,21 +261,13 @@ if (CTI_IsServer) then {
 		skipTime _it;
 
 		// dynamic wheather
-		if ( CTI_WEATHER_DYNAMIC == 1) then {
-		 execVM "Addons\DynamicWeatherEffects\randomWeather2.sqf"
-		};
+		0 spawn WEATHER_HOOK;
 
 		// Strat mode init
 		0 call CTI_SM_Map_setup;
-		//if ( (missionNamespace getVariable 'CTI_SM_STRATEGIC')==1) then {
-			{_x spawn CTI_SM_Allow_Capture;true} count [east,west];
-		//};
+		{_x spawn CTI_SM_Allow_Capture;true} count [east,west];
+		{_x spawn SM_BP_Hook;true} count [east,west];
 
-		// Bse prot Init
-		//if ( (missionNamespace getVariable 'CTI_SM_BASEP')==1) then {
-			 //0 spawn CTI_SM_Base_Prot;
-			 {_x spawn SM_BP_Hook;true} count [east,west];
-		//};
 
 		// Patrols
 
@@ -262,33 +299,31 @@ if (CTI_IsServer) then {
 		};
 
 
-		// henroth air loadout
-		if ((missionNamespace getVariable "CTI_AC_ENABLED")>0) then{
-			0 execVM "Addons\Henroth_AirLoadout\init.sqf"
-		};
-		// hc balance
-		0 spawn HCGA_Init;
 
-		  //UAv Lim
 
-		if ((missionNamespace getVariable "CTI_GAMEPLAY_DARTER_FUEL") == 1) then {
-			0 spawn UAV_FUEL;
-		};
-		// PhysX artifacts cleanup
-		if ((missionNamespace getVariable "CACHE_EMPTY") == 1) then {
-			0 spawn {
-				while {!CTI_Gameover} do {
-					{if !(simulationEnabled _x ) then {_x enableSimulationGlobal True};True} count (allUnits + vehicles + allDead );
-					sleep 600;
+		// time compression
+		0 spawn {
+			_day_ratio=14/CTI_WEATHER_FAST;
+			_nigth_ratio=10/CTI_WEATHER_FAST_NIGTH;
+			while {!CTI_Gameover} do {
+				if (daytime > 5 && daytime <19 ) then {
+					if (timeMultiplier != _day_ratio) then  {setTimeMultiplier _day_ratio;};
+				} else {
+					if (timeMultiplier !=  _nigth_ratio) then {setTimeMultiplier _nigth_ratio; }
 				};
+				sleep 120;
 			};
+
 		};
+
+
 
 };
 
 if (CTI_IsClient) then {
 
-
+	//tutorial
+	0 call TUTO_Init_Client;
 	//New Map if Adv Network
 	0 spawn SM_Maps_Hook;
 
@@ -302,15 +337,11 @@ if (CTI_IsClient) then {
 		};
 	};
 
-	// dynamic wheather
-	if ( CTI_WEATHER_DYNAMIC == 1) then {
-	 execVM "Addons\DynamicWeatherEffects\randomWeather2.sqf"
-	};
 
 	// NEW Revive
 	if (CTI_SM_FAR == 1) then {
 		0 spawn REV_INIT;
-		//call compileFinal preprocessFileLineNumbers "Addons\FAR_revive\FAR_revive_init.sqf";
+
 	};
 
 	// Thermal / NV restriction
@@ -322,11 +353,11 @@ if (CTI_IsClient) then {
 	0 execVM "Addons\Strat_mode\SLING_AUG\SA_Init.sqf";
 
 	// 3P restrict
-  0 execVM "Addons\Strat_mode\Functions\SM_3pRestrict.sqf";
+  	0 execVM "Addons\Strat_mode\Functions\SM_3pRestrict.sqf";
 
-  // Statics on offroads handlers
-  0 execVM "Addons\Strat_mode\Functions\SM_AttachStatics.sqf";
- if ( (missionNamespace getVariable 'CTI_SM_STRATEGIC')==1) then { 0 call CTI_SM_Draw_Connect_Towns;};
+  	// Statics on offroads handlers
+  	0 execVM "Addons\Strat_mode\Functions\SM_AttachStatics.sqf";
+ 	if ( (missionNamespace getVariable 'CTI_SM_STRATEGIC')==1) then { 0 call CTI_SM_Draw_Connect_Towns;};
 
 
 	//adaptative group size
@@ -334,7 +365,9 @@ if (CTI_IsClient) then {
 		0 execVM "Addons\Strat_mode\Functions\SM_AdaptGroup.sqf";
 	};
  	// fatique revamp
-  	0 spawn F_REVAMP;
+  	if (missionNamespace getVariable "CTI_UNITS_FATIGUE" == 1) then {
+  		["F_FRAME", "onEachFrame", {0 call F_REVAMP_FRAME}] call bis_fnc_addStackedEventHandler;
+  	};
 
   	// a Radar
 	if (missionNamespace getVariable "CTI_SM_RADAR" == 1) then {
@@ -342,36 +375,29 @@ if (CTI_IsClient) then {
 		0 execVM "Addons\Strat_mode\Radar\AIRR_init.sqf";
 	};
 
-  // vehicle repairs and forcelock
-  if ( (missionNamespace getVariable 'CTI_SM_REPAIR')==1) then {
+ 	 // vehicle repairs and forcelock
+ 	 if ( (missionNamespace getVariable 'CTI_SM_REPAIR')==1) then {
 		0 execVM "Addons\Strat_mode\Functions\SM_RepairVehicule.sqf";
 	};
 
-  // Strat Mode Help and fuctions
-	//if ( (missionNamespace getVariable 'CTI_SM_STRATEGIC')==1) then {
-		0 execVM "Addons\Strat_mode\Functions\SM_DrawHelp.sqf";
-		if !((side player) == resistance) then{
-			0 execVM "Addons\Strat_mode\Functions\SM_Orders.sqf";
-			0 execVM "Addons\Strat_mode\Functions\SM_TownPriority.sqf";
-		};
-	//};
+  	// Strat Mode Help and fuctions
 
-
-	// henroth air loadout
-	if ((missionNamespace getVariable "CTI_AC_ENABLED")>0) then{
-		0 execVM "Addons\Henroth_AirLoadout\init.sqf"
+	//0 execVM "Addons\Strat_mode\Functions\SM_DrawHelp.sqf";
+	if !((side player) == resistance) then{
+		0 execVM "Addons\Strat_mode\Functions\SM_Orders.sqf";
+		0 execVM "Addons\Strat_mode\Functions\SM_TownPriority.sqf";
 	};
+
+
 
 	// Strategic markers
 	0 spawn {
 		waitUntil {!isNil 'CTI_InitTowns'};
 		sleep 1;
 		if !(CTI_P_SideJoined == resistance) then {
-			//if (missionNamespace getVariable "CTI_SM_STRATEGIC" == 1) then {
-				execFSM "Addons\Strat_mode\FSM\town_markers.fsm";
-			/*} else {
-				execFSM "Client\FSM\town_markers.fsm";
-			};*/
+
+			execFSM "Addons\Strat_mode\FSM\town_markers.fsm";
+
 		};
 	};
 
@@ -420,11 +446,8 @@ if (CTI_IsClient) then {
 
   //UAV lim
 
-	if ((missionNamespace getVariable "CTI_GAMEPLAY_DARTER_FUEL") == 1) then {
-		0 spawn UAV_FUEL;
-	};
 	if ((missionNamespace getVariable "CTI_GAMEPLAY_DARTER") >0 ) then {
-		["darter","onEachFrame",'call UAV_RANGE ' ] call BIS_fnc_addStackedEventHandler;
+		["darter","onEachFrame",{0 call UAV_RANGE } ] call BIS_fnc_addStackedEventHandler;
 	};
 
 

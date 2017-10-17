@@ -37,6 +37,9 @@ CTI_SE_FNC_StartUpgrade = compileFinal preprocessFileLineNumbers "Server\Functio
 CTI_SE_FNC_TrashObject = compileFinal preprocessFileLineNumbers "Server\Functions\Server_TrashObject.sqf";
 CTI_SE_FNC_Cache = compileFinal preprocessFileLineNumbers "Server\Functions\Server_CacheVehicle.sqf";
 
+PERS_SAVE = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\PERS_save.sqf";
+PERS_LOAD = compileFinal preprocessFileLineNumbers "Addons\Strat_mode\Functions\PERS_Load.sqf";
+
 
 funcCalcAlignPosDir = compileFinal preprocessFileLineNumbers "Server\Functions\Externals\fCalcAlignPosDir.sqf";
 funcVectorAdd = compileFinal preprocessFileLineNumbers "Server\Functions\Externals\fVectorAdd.sqf";
@@ -50,13 +53,16 @@ call compile preprocessFileLineNumbers "Server\Functions\FSM\Functions_FSM_Repai
 call compile preprocessFileLineNumbers "Server\Functions\FSM\Functions_FSM_UpdateAI.sqf";
 call compile preprocessFileLineNumbers "Server\Functions\FSM\Functions_FSM_UpdateCommander.sqf";
 
-["Initialize"] call BIS_fnc_dynamicGroups
+["Initialize"] call BIS_fnc_dynamicGroups;
 
 
 execVM "Server\Init\Init_Prison.sqf";
+execVM "Addons\Strat_mode\Functions\TUTORIAL_Init.sqf";
 
 CTI_Structure_Lock=False;
 CTI_Worker_Lock=False;
+
+
 
 CENTER_POS=getMarkerPos "CENTER_POS";
 "CENTER_POS" setmarkeralpha 0;
@@ -130,22 +136,22 @@ while {! (((getMarkerPos format ["HELO_START_%1", _i])select 0) == 0)} do
 	_logic setVariable ["cti_defences", [],true];
 	_logic setVariable ["cti_service", [],true];
 	_upgrades = [];
-	for '_i' from 1 to count(missionNamespace getVariable format["CTI_%1_UPGRADES_LEVELS", _side]) do { [_upgrades, 0] call CTI_CO_FNC_ArrayPush };
-	if ((missionNamespace getvariable "CTI_VEHICLES_AIR_FFAR")==2) then {_upgrades set [CTI_UPGRADE_AIR_FFAR,10]};
-	if ((missionNamespace getvariable "CTI_VEHICLES_AIR_AA") ==2)then {_upgrades set [CTI_UPGRADE_AIR_AT,10]};
-	if( (missionNamespace getvariable "CTI_VEHICLES_AIR_AT")==2 ) then {_upgrades set [CTI_UPGRADE_AIR_AA,10]};
-	if ((missionNamespace getvariable "CTI_VEHICLES_AIR_CM")==2) then {_upgrades set [CTI_UPGRADE_AIR_CM,10]};
+	for '_i' from 1 to count(missionNamespace getVariable format["CTI_%1_UPGRADES_LEVELS", _side]) do { _upgrades pushBack 0 };
+	if ((missionNamespace getvariable "CTI_VEHICLES_AIR_FFAR")==2) then {_upgrades set [CTI_UPGRADE_AIR_FFAR,1]};
+	if ((missionNamespace getvariable "CTI_VEHICLES_AIR_AT") ==2)then {_upgrades set [CTI_UPGRADE_AIR_AT,1]};
+	if( (missionNamespace getvariable "CTI_VEHICLES_AIR_AA")==2 ) then {_upgrades set [CTI_UPGRADE_AIR_AA,1]};
+	if ((missionNamespace getvariable "CTI_VEHICLES_AIR_CM")==2) then {_upgrades set [CTI_UPGRADE_AIR_CM,1]};
 	if ((missionNamespace getvariable "CTI_TOWNS_OCCUPATION")==0) then {_upgrades set [CTI_UPGRADE_TOWNS,10]};
-	// for '_i' from 1 to count(missionNamespace getVariable format["CTI_%1_UPGRADES_LEVELS", _side]) do { [_upgrades, 1] Call CTI_CO_FNC_ArrayPush };
+	// for '_i' from 1 to count(missionNamespace getVariable format["CTI_%1_UPGRADES_LEVELS", _side]) do { _upgrades pushback 1 };
 	_logic setVariable ["cti_upgrades", _upgrades, true];
 	_logic setVariable ["cti_upgrade", -1, true];
-	_logic setVariable ["cti_upgrade_lt", 0, true];
+	_logic setVariable ["cti_upgrade_lt", -1, true];
 
 
 	//--- Create the defensive teams if needed
 	if (CTI_BASE_DEFENSES_AUTO_LIMIT > 0) then {
 		_defense_team = createGroup _side;
-		_defense_team setGroupID ["Defense Team"];
+		_defense_team setGroupIDGlobal ["Defense Team"];
 		_logic setVariable ["cti_defensive_team", _defense_team,true];
 	};
 
@@ -166,78 +172,53 @@ while {! (((getMarkerPos format ["HELO_START_%1", _i])select 0) == 0)} do
 		if ((missionNamespace getVariable [format ["%1", _model],["","","","","","","",""]]) select 7 != "") then {[_vehicle, _side, ((missionNamespace getVariable [format ["%1", _model],["","","","","","","",""]]) select 7)] call CTI_CO_FNC_InitializeCustomVehicle;};
 	} forEach (missionNamespace getVariable format["CTI_%1_Vehicles_Startup", _side]);
 
-	//Radios
-	/*
-	_logic setVariable ["cti_radios", [],true];
-	{
-		_l=format ["%1_%2", _side,_x];
-		_rindex=radioChannelCreate [[0.8,0.1,0.1,1], _l, "%UNIT_NAME",[]];
-		_logic setVariable ["cti_radios", (_logic getVariable "cti_radios")+[[_rindex,_l]],true];
-	} forEach CTI_RADIOS;*/
 
-
-	//--- Handle the Team
 	_teams = [];
-	/*
-	{
-		if !(isNil '_x') then {
-			if (_x isKindOf "Man") then {
-				_group = group _x;
-				[_teams, _group] call CTI_CO_FNC_ArrayPush;
-				[_group, _side] call CTI_SE_FNC_InitializeGroup;
 
-				[leader _group, missionNamespace getVariable format ["CTI_AI_%1_DEFAULT_GEAR", _side]] call CTI_CO_FNC_EquipUnit;
+	0 spawn {
+		waitUntil {CTI_Init_Server};
+		while {! CTi_GameOver} do {
+			{
+				_unit=_x;
+				_group=group _x;
+				_side=side _group;
+				_side_logic=(_side) call CTI_CO_FNC_GetSideLogic;
+				_sideID=_side call CTI_CO_FNC_GetSideID;
+				if (!(isPlayer _unit) && (_side in [east,west]) && ((_side == west && CTI_AI_TEAMS_ENABLED == 1) || (_side == east && CTI_AI_TEAMS_ENABLED == 2) || CTI_AI_TEAMS_ENABLED == 3)) then {
+					if ({!(isPlayer leader _x)} count (_side_logic getVariable "CTI_TEAMS") < CTI_AI_TEAMS_NB) then {
+						_new_group=grpNull;
+						_new_group =createGroup _side;
+						[_unit] joinSilent _new_group;
+						[_unit, missionNamespace getVariable format ["CTI_AI_%1_DEFAULT_GEAR", _side]] call CTI_CO_FNC_EquipUnit;
 
-				if !(isPlayer leader _group) then {
-					if ((missionNamespace getVariable "CTI_AI_TEAMS_ENABLED") == 3 || _side == west && (missionNamespace getVariable "CTI_AI_TEAMS_ENABLED") == 1 || _side == east && (missionNamespace getVariable "CTI_AI_TEAMS_ENABLED") == 2 ) then { //--- Wait for the player to be "ready"
-						(leader _group) setPos ([_startPos, 8, 30] call CTI_CO_FNC_GetRandomPosition);
-						leader _group addEventHandler ["killed", format["[_this select 0, _this select 1, %1] spawn CTI_CO_FNC_OnUnitKilled", _sideID]]; //--- Called on destruction
-						//if ((missionNamespace getVariable "CTI_UNITS_FATIGUE") == 0) then {leader _group enableFatigue false}; //--- Disable the unit's fatigue
-						[leader _group, missionNamespace getVariable format ["CTI_AI_%1_DEFAULT_GEAR_AI", _side]] call CTI_CO_FNC_EquipUnit;
-						[_group, _side, _logic] spawn {
-							_group = _this select 0;
-							_side = _this select 1;
-							_logic = _this select 2;
-
-							if (isMultiplayer) then { sleep 20 };
-							_group allowFleeing 0;
-
-							if (typeOf (leader _group) != (missionNamespace getVariable format["CTI_%1_Commander", _side])) then { //--- An AI Team
-								sleep (random 5); //--- Differ each threads.
-								if (isNil {_group getVariable "cti_aifsm_handled"}) then {
-									[_group, _side] execFSM "Server\FSM\update_ai.fsm";
-								};
-							};
-							} else { //--- The Commander
-								if (isNull (_logic getVariable "cti_commander")) then { _logic setVariable ["cti_commander", _group, true] };
-							};
-
+						waitUntil {!isNull _new_group};
+						[_unit] joinSilent _new_group;
+						waitUntil {group _unit == _new_group};
+						diag_log format ["%1- %2", units _new_group,_new_group];
+						_unit enableFatigue false;
+						_new_group selectLeader  _unit;
+						[_new_group,_side ] call CTI_SE_FNC_InitializeGroup;
+						_new_group allowFleeing 0;
+						if (isNil {_new_group getVariable "cti_aifsm_handled"}) then {
+							[_new_group, _side] execFSM "Server\FSM\update_ai.fsm";
 						};
+						_unit addEventHandler ["killed", format["[_this select 0, _this select 1, %1] spawn CTI_CO_FNC_OnUnitKilled", _sideID]];
+
+						if (isMultiplayer) then { sleep 20 }else {sleep 2};
+
+						_unit setDamage 1; //force respawn
 					};
+
+
 				};
-			};
+			}count (playableUnits+switchableUnits);
+			sleep 10;
 		};
-	} forEach (synchronizedObjects _logic);
-	*/
+	};
+
 	_logic setVariable ["cti_teams", _teams, true];
 
-	//--- Handle the Commander
-	/*if ((missionNamespace getVariable "CTI_AI_TEAMS_ENABLED") == 3 || _side == west && (missionNamespace getVariable "CTI_AI_TEAMS_ENABLED") == 1 || _side == east && (missionNamespace getVariable "CTI_AI_TEAMS_ENABLED") == 2 ) then {
-		[_side, _logic] spawn {
-			_side = _this select 0;
-			_logic = _this select 1;
 
-			sleep 2;
-			while {!CTi_GameOver} do {
-				if (isMultiplayer) then { sleep 25 };
-
-				if !(isNull (_logic getVariable "cti_commander")) then {
-						_logic setVariable ["cti_ai_commander", true];
-						(_side) execFSM "Server\FSM\update_commander.fsm";
-					};
-				};
-		};
-	};*/
 	if ((missionNamespace getVariable "CTI_AI_TEAMS_ENABLED") == 3 || _side == west && (missionNamespace getVariable "CTI_AI_TEAMS_ENABLED") == 1 || _side == east && (missionNamespace getVariable "CTI_AI_TEAMS_ENABLED") == 2 ) then {
 		[_side, _logic] spawn {
 			private ["_side","_logic","_teams","_possible","_next_commander"];
@@ -283,9 +264,17 @@ while {! (((getMarkerPos format ["HELO_START_%1", _i])select 0) == 0)} do
 	execFSM "Server\FSM\update_resources.fsm";
 	execFSM "Server\FSM\update_victory.fsm";
 };
-
+if (missionNamespace getvariable "CTI_PERSISTANT" == 1) then {
+	waitUntil {!isNil 'CTI_InitTowns'};
+	if (profileNamespace getvariable ["CTI_SAVE_ENABLED",false]) then { 0 call PERS_LOAD};
+	0 spawn {
+		while {!CTi_GameOver} do {
+			sleep 270 +random (60);
+			0 call PERS_SAVE;
+		};
+	};
+};
 
 CTI_Init_Server=True;
 
 
-//0 execVM "Addons\Zeus\Z_init_GUER.sqf";
